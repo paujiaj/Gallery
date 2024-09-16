@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="css/gallery.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@100;400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    <script src="js/gallery.js" defer></script>
+    <title>Document</title>
+</head>
+
+<body>
+    <header>
+        <div class="back" id="back">
+            <a href="/" class="back-btn"><i class="fa fa-chevron-left" aria-hidden="true"></i></a>
+            <form id="check" class="check">
+                <button class="check-btn" type="submit" onclick="closePopup3()"><i class="fa fa-check"
+                        aria-hidden="true"></i></button>
+                <span class="close-check" onclick="closePopup3()">&times;</span>
+            </form>
+        </div>
+        <div class="upload-page" id="upload-page">
+            <span class="close-popup" onclick="closePopup2()">&times;</span>
+            <main class="app">
+                <div class="header">
+                    <p>UPLOAD IMAGES</p>
+                    <div class="server-message"></div>
+                </div>
+
+                <div class="input-div">
+                    <p>Drag & drop images here or <span class="browse">Browse</span></p>
+                    <input type="file" class="file" multiple="multiple" accept="image/png, image/jpg, image/jpeg">
+                </div>
+                <form id="queued-form">
+                    <div class="header">
+                        <p>QUEUED</p>
+                        <button class="hero-btn" type="submit">UPLOAD</button>
+                    </div>
+                    <div class="queued-div"></div>
+                </form>
+            </main>
+        </div>
+    </header>
+    <section class="image-page">
+        <div class="container2">
+            <div class="saved-div">
+            </div>
+        </div>
+        <div id="popup-container" class="popup-container">
+            <span class="close-popup" onclick="closePopup()">&times;</span>
+            <img id="popup-image" class="popup-image" onclick="closePopup()" src="" alt="popup image">
+        </div>
+        <form id="upload-btn" class="upload-btn">
+            <a class="hero-btn" onclick="openPopup2()">UPLOAD</a>
+            <a class="hero-btn2" onclick="openPopup3()">DELETE</a>
+        </form>
+    </section>
+
+
+
+
+    <script>
+        let queuedImagesArray = [],
+            savedForm = document.querySelector("#upload-btn"),
+            queuedForm = document.querySelector("#queued-form"),
+            savedDiv = document.querySelector(".saved-div"),
+            queuedDiv = document.querySelector(".queued-div"),
+            inputDiv = document.querySelector(".input-div"),
+            input = document.querySelector(".input-div input"),
+            serverMessage = document.querySelector(".server-message"),
+            savedImages = JSON.parse('<%-JSON.stringify(images)%>'),
+            deleteBtn = document.querySelector("#check")
+        deleteImages = [];
+
+        if (savedImages) displaySavedImages()
+
+        function displaySavedImages() {
+            let images = ""
+            savedImages.forEach((image, index) => {
+                images += `<div id="image" class="image">
+                       <img src="https://localhost:3003/img/upload/${image}" alt="image">
+                       <span class="span-btn" onclick="deleteSavedImage(${index})">&times;</span>
+                       </div>`
+            })
+            savedDiv.innerHTML = images
+        }
+
+        function deleteSavedImage(index) {
+            deleteImages.push(savedImages[index])
+            savedImages.splice(index, 1)
+            displaySavedImages()
+        }
+
+        deleteBtn.addEventListener("submit", (e) => {
+            e.preventDefault()
+            deleteImagesFromServer()
+        })
+
+        function deleteImagesFromServer() {
+            fetch("delete", {
+                method: "put",
+                headers: {
+                    "Accept": "application/json, text/plain, */*",
+                    "Content-type": "application/json"
+                },
+                body: JSON.stringify({ deleteImages })
+            })
+                .then(response => {
+                    if (response.status !== 200) throw Error(response.statusText)
+                    deleteImages = []
+                    serverMessage.innerHTML = response.statusText
+                    serverMessage.style.cssText = "background-color: #d4edda; color: #1b5e20"
+                })
+
+                .catch(error => {
+                    serverMessage.innerHTML = error
+                    serverMessage.style.cssText = "background-color: #f8d7da; color: #b71c1c"
+                })
+        }
+
+        input.addEventListener("change", () => {
+            const files = input.files
+            for (let i = 0; i < files.length; i++) {
+                queuedImagesArray.push(files[i])
+            }
+            queuedForm.reset()
+            displayQueuedImages()
+        })
+
+        inputDiv.addEventListener("drop", (e) => {
+            e.preventDefault()
+            const files = e.dataTransfer.files
+            console.log(files)
+            for (let i = 0; i < files.length; i++) {
+                if (!files[i].type.match("image")) continue
+
+                if (queuedImagesArray.every(image => image.name !== files[i].name))
+                    queuedImagesArray.push(files[i])
+            }
+            displayQueuedImages()
+        })
+
+        function displayQueuedImages() {
+            let images = ""
+            queuedImagesArray.forEach((image, index) => {
+                images += `<div class="image">
+                       <img src="${URL.createObjectURL(image)}" alt="image">
+                       <span onclick="deleteQueuedImage(${index})">&times;</span>
+                       </div>`
+            })
+            queuedDiv.innerHTML = images
+        }
+
+        function deleteQueuedImage(index) {
+            queuedImagesArray.splice(index, 1)
+            displayQueuedImages()
+        }
+
+        queuedForm.addEventListener("submit", (e) => {
+            e.preventDefault()
+            sendQueuedImagesToServer()
+        })
+
+        function sendQueuedImagesToServer() {
+            const formData = new FormData(queuedForm)
+
+            queuedImagesArray.forEach((image, index) => {
+                formData.append(`file[${index}]`, image)
+            })
+
+            fetch("upload", {
+                method: "POST",
+                body: formData
+            })
+
+                .then(response => {
+                    if (response.status !== 200) throw Error(response.statusText)
+                    location.reload()
+                })
+
+                .catch(error => {
+                    serverMessage.innerHTML = error
+                    serverMessage.style.cssText = "background-color: #f8d7da; color: #b71c1c"
+                })
+        }
+
+        function openPopup3() {
+            let checkElements = document.getElementsByClassName('check');
+            let spanBtnElements = document.getElementsByClassName('span-btn');
+
+            for (let i = 0; i < checkElements.length; i++) {
+                checkElements[i].style.display = 'flex';
+            }
+
+            for (let i = 0; i < spanBtnElements.length; i++) {
+                spanBtnElements[i].style.display = 'block';
+            }
+        }
+
+        function closePopup3() {
+            let checkElements = document.getElementsByClassName('check');
+            let spanBtnElements = document.getElementsByClassName('span-btn');
+
+            for (let i = 0; i < checkElements.length; i++) {
+                checkElements[i].style.display = 'none';
+            }
+
+            for (let i = 0; i < spanBtnElements.length; i++) {
+                spanBtnElements[i].style.display = 'none';
+            }
+        }
+
+    </script>
+</body>
+
+</html>
